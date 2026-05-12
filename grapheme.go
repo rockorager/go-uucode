@@ -1,7 +1,14 @@
 package uucode
 
+import "unicode/utf8"
+
+// BreakState carries state between adjacent grapheme break decisions.
+//
+// Most callers should use GraphemeIterator instead of managing BreakState
+// directly.
 type BreakState string
 
+// Grapheme break state values.
 const (
 	BreakStateDefault                BreakState = "default"
 	BreakStateRegionalIndicator      BreakState = "regional_indicator"
@@ -10,252 +17,313 @@ const (
 	BreakStateIndicConjunctLinker    BreakState = "indic_conjunct_break_linker"
 )
 
-type IteratorResult struct {
-	CodePoint CodePoint
-	IsBreak   bool
-}
+const (
+	breakStateDefault uint8 = iota
+	breakStateRegionalIndicator
+	breakStateExtendedPictographic
+	breakStateIndicConjunctConsonant
+	breakStateIndicConjunctLinker
+)
 
+// Grapheme identifies a grapheme cluster by byte offsets into the original
+// string.
 type Grapheme struct {
+	// Start is the byte offset of the first byte in the grapheme cluster.
 	Start int
-	End   int
+	// End is the byte offset just after the grapheme cluster.
+	End int
 }
 
-type indexedIterator interface {
-	Next() (CodePoint, bool)
-	Peek() (CodePoint, bool)
-	Index() int
-	Clone() RuneScanner
-}
-
+// GraphemeIterator iterates over extended grapheme clusters in a string.
 type GraphemeIterator struct {
-	I       int
-	State   BreakState
-	cpIt    indexedIterator
-	nextCP  CodePoint
+	i       int
+	state   uint8
+	s       string
+	nextEnd int
+	nextCP  rune
 	hasNext bool
-	nextGB  GraphemeBreak
+	nextGB  uint8
 }
 
-func NewGraphemeIterator(cpIt indexedIterator) *GraphemeIterator {
-	cp, ok := cpIt.Next()
-	gb := GraphemeOther
+// NewGraphemeIterator returns a grapheme cluster iterator for s.
+func NewGraphemeIterator(s string) GraphemeIterator {
+	cp, size, ok := nextRuneInString(s, 0)
+	gb := gbOther
 	if ok {
-		gb = GetAll(cp).GraphemeBreak
+		gb = runtimeLookup(cp).gb
 	}
-	return &GraphemeIterator{
-		I:       0,
-		State:   BreakStateDefault,
-		cpIt:    cpIt,
+	return GraphemeIterator{
+		s:       s,
+		nextEnd: size,
 		nextCP:  cp,
 		hasNext: ok,
 		nextGB:  gb,
 	}
 }
 
-func NewUTF8GraphemeIterator(s string) *GraphemeIterator {
-	return NewGraphemeIterator(NewUTF8Iterator(s))
-}
-
-func (it *GraphemeIterator) NextCodePoint() (IteratorResult, bool) {
-	if !it.hasNext {
-		return IteratorResult{}, false
+func nextRuneInString(s string, i int) (rune, int, bool) {
+	if i >= len(s) {
+		return 0, i, false
 	}
-	cp1 := it.nextCP
-	gb1 := it.nextGB
-	it.I = it.cpIt.Index()
-	cp2, ok := it.cpIt.Next()
-	it.nextCP, it.hasNext = cp2, ok
-	if ok {
-		it.nextGB = GetAll(cp2).GraphemeBreak
-		return IteratorResult{CodePoint: cp1, IsBreak: ComputeGraphemeBreak(gb1, it.nextGB, &it.State)}, true
+	if s[i] < utf8.RuneSelf {
+		return rune(s[i]), i + 1, true
 	}
-	return IteratorResult{CodePoint: cp1, IsBreak: true}, true
+	r, size := utf8.DecodeRuneInString(s[i:])
+	if r == utf8.RuneError && size == 0 {
+		return 0, i, false
+	}
+	return r, i + size, true
 }
 
-func (it GraphemeIterator) PeekCodePoint() (IteratorResult, bool) {
-	it.cpIt = it.cpIt.Clone().(indexedIterator)
-	return (&it).NextCodePoint()
-}
-
-func (it *GraphemeIterator) NextGrapheme() (Grapheme, bool) {
+// Next returns the next grapheme cluster.
+//
+// The returned Grapheme contains byte offsets into the original string. ok is
+// false after the iterator is exhausted.
+func (it *GraphemeIterator) Next() (Grapheme, bool) {
 	if !it.hasNext {
 		return Grapheme{}, false
 	}
-	start := it.I
+	start := it.i
 	for {
-		res, ok := it.NextCodePoint()
+		gb1 := it.nextGB
+		it.i = it.nextEnd
+		cp, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
+		it.nextCP, it.nextEnd, it.hasNext = cp, nextEnd, ok
 		if !ok {
-			return Grapheme{}, false
+			return Grapheme{Start: start, End: it.i}, true
 		}
-		if res.IsBreak {
-			return Grapheme{Start: start, End: it.I}, true
+		it.nextGB = runtimeLookup(cp).gb
+		if computeGraphemeBreakRaw(gb1, it.nextGB, &it.state) {
+			return Grapheme{Start: start, End: it.i}, true
 		}
 	}
 }
 
-func (it GraphemeIterator) PeekGrapheme() (Grapheme, bool) {
-	it.cpIt = it.cpIt.Clone().(indexedIterator)
-	return (&it).NextGrapheme()
+// Peek returns the next grapheme cluster without advancing the iterator.
+func (it GraphemeIterator) Peek() (Grapheme, bool) {
+	return (&it).Next()
 }
 
-func IsBreak(cp1, cp2 CodePoint, state *BreakState) bool {
-	return ComputeGraphemeBreak(GetAll(cp1).GraphemeBreak, GetAll(cp2).GraphemeBreak, state)
+// IsBreak reports whether there is a grapheme cluster boundary between cp1 and
+// cp2, updating state for rules that depend on previous code points.
+func IsBreak(cp1, cp2 rune, state *BreakState) bool {
+	return ComputeGraphemeBreak(runtimeLookup(cp1).graphemeBreak(), runtimeLookup(cp2).graphemeBreak(), state)
 }
 
+// ComputeGraphemeBreak reports whether there is a grapheme cluster boundary
+// between two grapheme break properties, updating state for rules that depend
+// on previous properties.
 func ComputeGraphemeBreak(gb1, gb2 GraphemeBreak, state *BreakState) bool {
+	rawState := breakStateDefault
+	if state != nil {
+		rawState = rawBreakState(*state)
+	}
+	ok := computeGraphemeBreakRaw(rawGraphemeBreak(gb1), rawGraphemeBreak(gb2), &rawState)
+	if state != nil {
+		*state = breakStateFromRaw(rawState)
+	}
+	return ok
+}
+
+func computeGraphemeBreakRaw(gb1, gb2 uint8, state *uint8) bool {
 	if state == nil {
-		s := BreakStateDefault
+		s := breakStateDefault
 		state = &s
 	}
 	switch *state {
-	case BreakStateRegionalIndicator:
-		if gb1 != GraphemeRegionalIndicator || gb2 != GraphemeRegionalIndicator {
-			*state = BreakStateDefault
+	case breakStateRegionalIndicator:
+		if gb1 != gbRegionalIndicator || gb2 != gbRegionalIndicator {
+			*state = breakStateDefault
 		}
-	case BreakStateExtendedPictographic:
-		if !possiblyEmojiSequencePart(gb1) || !possiblyEmojiSequencePart(gb2) {
-			*state = BreakStateDefault
+	case breakStateExtendedPictographic:
+		if !possiblyEmojiSequencePartRaw(gb1) || !possiblyEmojiSequencePartRaw(gb2) {
+			*state = breakStateDefault
 		}
-	case BreakStateIndicConjunctConsonant, BreakStateIndicConjunctLinker:
-		if !possiblyIndicSequencePart(gb1) || !possiblyIndicSequencePart(gb2) {
-			*state = BreakStateDefault
+	case breakStateIndicConjunctConsonant, breakStateIndicConjunctLinker:
+		if !possiblyIndicSequencePartRaw(gb1) || !possiblyIndicSequencePartRaw(gb2) {
+			*state = breakStateDefault
 		}
 	}
 
-	if gb1 == GraphemeCR && gb2 == GraphemeLF {
+	if gb1 == gbCR && gb2 == gbLF {
 		return false
 	}
-	if gb1 == GraphemeControl || gb1 == GraphemeCR || gb1 == GraphemeLF {
+	if gb1 == gbControl || gb1 == gbCR || gb1 == gbLF {
 		return true
 	}
-	if gb2 == GraphemeControl || gb2 == GraphemeCR || gb2 == GraphemeLF {
+	if gb2 == gbControl || gb2 == gbCR || gb2 == gbLF {
 		return true
 	}
-	if gb1 == GraphemeL && (gb2 == GraphemeL || gb2 == GraphemeV || gb2 == GraphemeLV || gb2 == GraphemeLVT) {
+	if gb1 == gbL && (gb2 == gbL || gb2 == gbV || gb2 == gbLV || gb2 == gbLVT) {
 		return false
 	}
-	if (gb1 == GraphemeLV || gb1 == GraphemeV) && (gb2 == GraphemeV || gb2 == GraphemeT) {
+	if (gb1 == gbLV || gb1 == gbV) && (gb2 == gbV || gb2 == gbT) {
 		return false
 	}
-	if (gb1 == GraphemeLVT || gb1 == GraphemeT) && gb2 == GraphemeT {
+	if (gb1 == gbLVT || gb1 == gbT) && gb2 == gbT {
 		return false
 	}
-	if gb2 == GraphemeSpacingMark {
+	if gb2 == gbSpacingMark {
 		return false
 	}
-	if gb1 == GraphemePrepend {
+	if gb1 == gbPrepend {
 		return false
 	}
 
-	if gb1 == GraphemeIndicConjunctConsonant {
-		if isIndicConjunctBreakExtend(gb2) {
-			*state = BreakStateIndicConjunctConsonant
+	if gb1 == gbIndicConjunctConsonant {
+		if isIndicConjunctBreakExtendRaw(gb2) {
+			*state = breakStateIndicConjunctConsonant
 			return false
 		}
-		if gb2 == GraphemeIndicConjunctLinker {
-			*state = BreakStateIndicConjunctLinker
+		if gb2 == gbIndicConjunctLinker {
+			*state = breakStateIndicConjunctLinker
 			return false
 		}
-	} else if *state == BreakStateIndicConjunctConsonant {
-		if gb2 == GraphemeIndicConjunctLinker {
-			*state = BreakStateIndicConjunctLinker
+	} else if *state == breakStateIndicConjunctConsonant {
+		if gb2 == gbIndicConjunctLinker {
+			*state = breakStateIndicConjunctLinker
 			return false
 		}
-		if isIndicConjunctBreakExtend(gb2) {
+		if isIndicConjunctBreakExtendRaw(gb2) {
 			return false
 		}
-		*state = BreakStateDefault
-	} else if *state == BreakStateIndicConjunctLinker {
-		if gb2 == GraphemeIndicConjunctLinker || isIndicConjunctBreakExtend(gb2) {
+		*state = breakStateDefault
+	} else if *state == breakStateIndicConjunctLinker {
+		if gb2 == gbIndicConjunctLinker || isIndicConjunctBreakExtendRaw(gb2) {
 			return false
 		}
-		if gb2 == GraphemeIndicConjunctConsonant {
-			*state = BreakStateDefault
+		if gb2 == gbIndicConjunctConsonant {
+			*state = breakStateDefault
 			return false
 		}
-		*state = BreakStateDefault
+		*state = breakStateDefault
 	}
 
-	if isExtendedPictographic(gb1) {
-		if isExtend(gb2) || gb2 == GraphemeZWJ {
-			*state = BreakStateExtendedPictographic
+	if isExtendedPictographicRaw(gb1) {
+		if isExtendRaw(gb2) || gb2 == gbZWJ {
+			*state = breakStateExtendedPictographic
 			return false
 		}
-		if gb1 == GraphemeEmojiModifierBase && gb2 == GraphemeEmojiModifier {
-			*state = BreakStateExtendedPictographic
+		if gb1 == gbEmojiModifierBase && gb2 == gbEmojiModifier {
+			*state = breakStateExtendedPictographic
 			return false
 		}
-	} else if *state == BreakStateExtendedPictographic {
-		if (isExtend(gb1) || gb1 == GraphemeEmojiModifier) && (isExtend(gb2) || gb2 == GraphemeZWJ) {
+	} else if *state == breakStateExtendedPictographic {
+		if (isExtendRaw(gb1) || gb1 == gbEmojiModifier) && (isExtendRaw(gb2) || gb2 == gbZWJ) {
 			return false
 		}
-		if gb1 == GraphemeZWJ && isExtendedPictographic(gb2) {
-			*state = BreakStateDefault
+		if gb1 == gbZWJ && isExtendedPictographicRaw(gb2) {
+			*state = breakStateDefault
 			return false
 		}
-		*state = BreakStateDefault
+		*state = breakStateDefault
 	}
 
-	if gb1 == GraphemeRegionalIndicator && gb2 == GraphemeRegionalIndicator {
-		if *state == BreakStateDefault {
-			*state = BreakStateRegionalIndicator
+	if gb1 == gbRegionalIndicator && gb2 == gbRegionalIndicator {
+		if *state == breakStateDefault {
+			*state = breakStateRegionalIndicator
 			return false
 		}
-		*state = BreakStateDefault
+		*state = breakStateDefault
 		return true
 	}
-	if isExtend(gb2) || gb2 == GraphemeZWJ {
+	if isExtendRaw(gb2) || gb2 == gbZWJ {
 		return false
 	}
 	return true
 }
 
-func deriveGraphemeBreak(cp CodePoint, p Properties) GraphemeBreak {
-	if p.IsEmojiModifier {
-		return GraphemeEmojiModifier
+func breakStateFromRaw(state uint8) BreakState {
+	switch state {
+	case breakStateRegionalIndicator:
+		return BreakStateRegionalIndicator
+	case breakStateExtendedPictographic:
+		return BreakStateExtendedPictographic
+	case breakStateIndicConjunctConsonant:
+		return BreakStateIndicConjunctConsonant
+	case breakStateIndicConjunctLinker:
+		return BreakStateIndicConjunctLinker
+	default:
+		return BreakStateDefault
 	}
-	if p.IsEmojiModifierBase {
-		return GraphemeEmojiModifierBase
-	}
-	if p.IsExtendedPictographic {
-		return GraphemeExtendedPictographic
-	}
-	switch p.IndicConjunctBreak {
-	case IndicConjunctExtend:
-		if cp == 0x200d {
-			return GraphemeZWJ
-		}
-		return GraphemeIndicConjunctExtend
-	case IndicConjunctLinker:
-		return GraphemeIndicConjunctLinker
-	case IndicConjunctConsonant:
-		return GraphemeIndicConjunctConsonant
-	}
-	if p.OriginalGraphemeBreak == "extend" {
-		if cp == 0x200c {
-			return GraphemeZWNJ
-		}
-		return GraphemeIndicConjunctExtend
-	}
-	return p.OriginalGraphemeBreak
 }
 
-func isIndicConjunctBreakExtend(gb GraphemeBreak) bool {
-	return gb == GraphemeIndicConjunctExtend || gb == GraphemeZWJ
+func rawBreakState(state BreakState) uint8 {
+	switch state {
+	case BreakStateRegionalIndicator:
+		return breakStateRegionalIndicator
+	case BreakStateExtendedPictographic:
+		return breakStateExtendedPictographic
+	case BreakStateIndicConjunctConsonant:
+		return breakStateIndicConjunctConsonant
+	case BreakStateIndicConjunctLinker:
+		return breakStateIndicConjunctLinker
+	default:
+		return breakStateDefault
+	}
 }
 
-func isExtend(gb GraphemeBreak) bool {
-	return gb == GraphemeZWNJ || gb == GraphemeIndicConjunctExtend || gb == GraphemeIndicConjunctLinker
+func rawGraphemeBreak(gb GraphemeBreak) uint8 {
+	switch gb {
+	case GraphemeControl:
+		return gbControl
+	case GraphemePrepend:
+		return gbPrepend
+	case GraphemeCR:
+		return gbCR
+	case GraphemeLF:
+		return gbLF
+	case GraphemeRegionalIndicator:
+		return gbRegionalIndicator
+	case GraphemeSpacingMark:
+		return gbSpacingMark
+	case GraphemeL:
+		return gbL
+	case GraphemeV:
+		return gbV
+	case GraphemeT:
+		return gbT
+	case GraphemeLV:
+		return gbLV
+	case GraphemeLVT:
+		return gbLVT
+	case GraphemeZWJ:
+		return gbZWJ
+	case GraphemeZWNJ:
+		return gbZWNJ
+	case GraphemeExtendedPictographic:
+		return gbExtendedPictographic
+	case GraphemeEmojiModifierBase:
+		return gbEmojiModifierBase
+	case GraphemeEmojiModifier:
+		return gbEmojiModifier
+	case GraphemeIndicConjunctExtend:
+		return gbIndicConjunctExtend
+	case GraphemeIndicConjunctLinker:
+		return gbIndicConjunctLinker
+	case GraphemeIndicConjunctConsonant:
+		return gbIndicConjunctConsonant
+	default:
+		return gbOther
+	}
 }
 
-func isExtendedPictographic(gb GraphemeBreak) bool {
-	return gb == GraphemeExtendedPictographic || gb == GraphemeEmojiModifierBase
+func isIndicConjunctBreakExtendRaw(gb uint8) bool {
+	return gb == gbIndicConjunctExtend || gb == gbZWJ
 }
 
-func possiblyEmojiSequencePart(gb GraphemeBreak) bool {
-	return isExtend(gb) || gb == GraphemeZWJ || gb == GraphemeExtendedPictographic || gb == GraphemeEmojiModifierBase || gb == GraphemeEmojiModifier
+func isExtendRaw(gb uint8) bool {
+	return gb == gbZWNJ || gb == gbIndicConjunctExtend || gb == gbIndicConjunctLinker
 }
 
-func possiblyIndicSequencePart(gb GraphemeBreak) bool {
-	return gb == GraphemeIndicConjunctConsonant || gb == GraphemeIndicConjunctLinker || gb == GraphemeIndicConjunctExtend || gb == GraphemeZWJ
+func isExtendedPictographicRaw(gb uint8) bool {
+	return gb == gbExtendedPictographic || gb == gbEmojiModifierBase
+}
+
+func possiblyEmojiSequencePartRaw(gb uint8) bool {
+	return isExtendRaw(gb) || gb == gbZWJ || gb == gbExtendedPictographic || gb == gbEmojiModifierBase || gb == gbEmojiModifier
+}
+
+func possiblyIndicSequencePartRaw(gb uint8) bool {
+	return gb == gbIndicConjunctConsonant || gb == gbIndicConjunctLinker || gb == gbIndicConjunctExtend || gb == gbZWJ
 }

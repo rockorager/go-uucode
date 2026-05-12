@@ -1,0 +1,6 @@
+.DS_Store
+*.test
+*.out
+*.prof
+coverage.*
+pkgsite

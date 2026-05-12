@@ -23,7 +23,7 @@ Index.txt
 # IndicPositionalCategory.txt (used)
 # IndicSyllabicCategory.txt (used)
 Jamo.txt
-LineBreak.txt
+# LineBreak.txt (used)
 NameAliases.txt
 NamedSequences.txt
 NamedSequencesProv.txt
@@ -32,13 +32,13 @@ NamesList.txt
 NormalizationCorrections.txt
 NormalizationTest.txt
 NushuSources.txt
-PropList.txt
+# PropList.txt (used)
 PropertyAliases.txt
 PropertyValueAliases.txt
 ReadMe.txt
 ScriptExtensions.txt
 # Scripts.txt (used)
-# SpecialCasing.txt (used)
+# SpecialCasing.txt (for reference)
 StandardizedVariants.txt
 TangutSources.txt
 USourceData.txt
@@ -60,10 +60,10 @@ auxiliary/GraphemeBreakTest.html
 # auxiliary/GraphemeBreakTest.txt
 auxiliary/LineBreakTest.html
 auxiliary/LineBreakTest.txt
-auxiliary/SentenceBreakProperty.txt
+# auxiliary/SentenceBreakProperty.txt (used)
 auxiliary/SentenceBreakTest.html
 auxiliary/SentenceBreakTest.txt
-auxiliary/WordBreakProperty.txt
+# auxiliary/WordBreakProperty.txt (used)
 auxiliary/WordBreakTest.html
 auxiliary/WordBreakTest.txt
 emoji/ReadMe.txt

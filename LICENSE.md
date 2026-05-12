@@ -2,7 +2,7 @@
 
 MIT License
 
-Copyright (c) 2026 Jacob Sandlund
+Copyright (c) 2026 Tim Culverhouse
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -22,9 +22,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## Other licenses
+## Attribution
 
-See [./licenses](./licenses) for licenses of code being used in the repo:
+This Go implementation is based on the design and table strategy of Jacob
+Sandlund's `uucode`:
 
-* [LICENSE_Bjoern_Hoehrmann](./licenses/LICENSE_Bjoern_Hoehrmann)
-* [LICENSE_unicode](./licenses/LICENSE_unicode)
+- https://github.com/jacobsandlund/uucode
+
+The bundled Unicode Character Database files are provided by Unicode, Inc. and
+are subject to the Unicode terms of use:
+
+- https://www.unicode.org/terms_of_use.html
