@@ -9,6 +9,7 @@ package ports that table-first approach to Go.
 It provides:
 
 - extended grapheme cluster iteration over Go strings
+- UAX #14 line break opportunity iteration over Go strings
 - grapheme-aware terminal cell width with `StringWidth`
 - typed lookup APIs for generated Unicode category, break, binary, emoji, width, and case properties
 - no runtime UCD parser, cache, or fallback path
@@ -34,6 +35,16 @@ func main() {
 			break
 		}
 		fmt.Printf("%q [%d:%d]\n", s[g.Start:g.End], g.Start, g.End)
+	}
+
+	text := "hello, 世界\nnext"
+	lines := uucode.NewLineIterator(text)
+	for {
+		seg, ok := lines.Next()
+		if !ok {
+			break
+		}
+		fmt.Printf("%q %s\n", text[seg.Start:seg.End], seg.Break)
 	}
 
 	fmt.Println(uucode.StringWidth("ò👨🏻‍❤️‍👨🏿_"))
