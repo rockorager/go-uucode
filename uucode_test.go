@@ -11,16 +11,16 @@ func TestGeneratedRuntimeRows(t *testing.T) {
 	if got := runtimeLookup(0x1f469).graphemeBreak(); got != GraphemeEmojiModifierBase {
 		t.Fatalf("woman grapheme break: got %q", got)
 	}
-	if got := GeneralCategory('A'); got != "Lu" {
+	if got := GeneralCategory('A'); got != GeneralCategoryLu {
 		t.Fatalf("A general category: got %q", got)
 	}
-	if got := EastAsianWidth('A'); got != "Na" {
+	if got := EastAsianWidth('A'); got != EastAsianWidthNa {
 		t.Fatalf("A east asian width: got %q", got)
 	}
-	if got := WordBreak('A'); got != "ALetter" {
+	if got := WordBreak('A'); got != WordBreakALetter {
 		t.Fatalf("A word break: got %q", got)
 	}
-	if got := SentenceBreak('A'); got != "Upper" {
+	if got := SentenceBreak('A'); got != SentenceBreakUpper {
 		t.Fatalf("A sentence break: got %q", got)
 	}
 	if got := LineBreak('A'); got != LineBreakAL {

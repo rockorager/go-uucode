@@ -77,48 +77,7 @@ func runtimeLookup(cp rune) runtimeRow {
 }
 
 func (r runtimeRow) graphemeBreak() GraphemeBreak {
-	switch r.gb {
-	case gbControl:
-		return GraphemeControl
-	case gbPrepend:
-		return GraphemePrepend
-	case gbCR:
-		return GraphemeCR
-	case gbLF:
-		return GraphemeLF
-	case gbRegionalIndicator:
-		return GraphemeRegionalIndicator
-	case gbSpacingMark:
-		return GraphemeSpacingMark
-	case gbL:
-		return GraphemeL
-	case gbV:
-		return GraphemeV
-	case gbT:
-		return GraphemeT
-	case gbLV:
-		return GraphemeLV
-	case gbLVT:
-		return GraphemeLVT
-	case gbZWJ:
-		return GraphemeZWJ
-	case gbZWNJ:
-		return GraphemeZWNJ
-	case gbExtendedPictographic:
-		return GraphemeExtendedPictographic
-	case gbEmojiModifierBase:
-		return GraphemeEmojiModifierBase
-	case gbEmojiModifier:
-		return GraphemeEmojiModifier
-	case gbIndicConjunctExtend:
-		return GraphemeIndicConjunctExtend
-	case gbIndicConjunctLinker:
-		return GraphemeIndicConjunctLinker
-	case gbIndicConjunctConsonant:
-		return GraphemeIndicConjunctConsonant
-	default:
-		return GraphemeOther
-	}
+	return GraphemeBreak(r.gb)
 }
 
 func (r runtimeRow) wcwidthStandalone() int {
@@ -185,22 +144,22 @@ func (r runtimeRow) isUnifiedIdeograph() bool {
 	return r.flags2&runtimeUnifiedIdeographFlag != 0
 }
 
-func (r runtimeRow) wordBreak() string {
-	return runtimeWordBreakNames[r.wb]
+func (r runtimeRow) wordBreak() WordBreakClass {
+	return WordBreakClass(r.wb)
 }
 
-func (r runtimeRow) sentenceBreak() string {
-	return runtimeSentenceBreakNames[r.sb]
+func (r runtimeRow) sentenceBreak() SentenceBreakClass {
+	return SentenceBreakClass(r.sb)
 }
 
 func (r runtimeRow) lineBreak() LineBreakClass {
 	return LineBreakClass(r.lb)
 }
 
-func (r runtimeRow) eastAsianWidth() string {
-	return runtimeEastAsianWidthNames[r.eaw]
+func (r runtimeRow) eastAsianWidth() EastAsianWidthClass {
+	return EastAsianWidthClass(r.eaw)
 }
 
-func (r runtimeRow) generalCategory() string {
-	return runtimeGeneralCategoryNames[r.gc]
+func (r runtimeRow) generalCategory() GeneralCategoryClass {
+	return GeneralCategoryClass(r.gc)
 }

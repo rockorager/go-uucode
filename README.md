@@ -10,7 +10,7 @@ It provides:
 
 - extended grapheme cluster iteration over Go strings
 - grapheme-aware terminal cell width with `StringWidth`
-- narrow lookup APIs for generated Unicode category, break, binary, emoji, width, and case properties
+- typed lookup APIs for generated Unicode category, break, binary, emoji, width, and case properties
 - no runtime UCD parser, cache, or fallback path
 
 ## Usage
@@ -64,19 +64,19 @@ Unicode 17 data. The rows below show the mean of the six benchmark subcases:
 
 | Predicate benchmark | go-uucode ns/op | stdlib ns/op | Speedup |
 |---|---:|---:|---:|
-| IsUpper | 1.85 | 5.48 | 2.97x |
-| IsLower | 1.80 | 5.87 | 3.27x |
-| IsTitle | 2.00 | 2.26 | 1.13x |
-| IsLetter | 1.69 | 6.24 | 3.70x |
-| IsNumber | 1.48 | 5.05 | 3.41x |
-| IsDigit | 1.76 | 4.71 | 2.68x |
-| IsMark | 1.96 | 6.25 | 3.19x |
-| IsPunct | 2.63 | 6.56 | 2.49x |
-| IsSymbol | 2.25 | 6.39 | 2.84x |
-| IsGraphic | 2.66 | 22.83 | 8.59x |
-| IsPrint | 2.55 | 21.70 | 8.50x |
-| IsControl | 0.38 | 0.68 | 1.77x |
-| IsSpace | 1.76 | 3.30 | 1.87x |
+| IsUpper | 1.67 | 5.73 | 3.42x |
+| IsLower | 1.68 | 5.77 | 3.44x |
+| IsTitle | 2.63 | 2.26 | 0.86x |
+| IsLetter | 1.75 | 6.50 | 3.72x |
+| IsNumber | 1.69 | 5.24 | 3.11x |
+| IsDigit | 1.68 | 4.68 | 2.78x |
+| IsMark | 1.75 | 6.52 | 3.72x |
+| IsPunct | 2.52 | 6.24 | 2.47x |
+| IsSymbol | 2.54 | 6.31 | 2.48x |
+| IsGraphic | 2.56 | 22.23 | 8.69x |
+| IsPrint | 2.62 | 22.26 | 8.50x |
+| IsControl | 0.37 | 0.68 | 1.83x |
+| IsSpace | 2.66 | 3.33 | 1.25x |
 
 Generated binary property APIs are benchmarked against `unicode.Is` with the
 matching stdlib range table on a property-focused 32-rune corpus:

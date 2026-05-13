@@ -1,22 +1,22 @@
 package uucode
 
-// GeneralCategory returns the Unicode general category abbreviation for r.
-func GeneralCategory(r rune) string {
+// GeneralCategory returns the Unicode general category for r.
+func GeneralCategory(r rune) GeneralCategoryClass {
 	return runtimeLookup(r).generalCategory()
 }
 
-// EastAsianWidth returns the Unicode East Asian Width abbreviation for r.
-func EastAsianWidth(r rune) string {
+// EastAsianWidth returns the Unicode East Asian Width property for r.
+func EastAsianWidth(r rune) EastAsianWidthClass {
 	return runtimeLookup(r).eastAsianWidth()
 }
 
-// WordBreak returns the Unicode word break property name for r.
-func WordBreak(r rune) string {
+// WordBreak returns the Unicode word break property for r.
+func WordBreak(r rune) WordBreakClass {
 	return runtimeLookup(r).wordBreak()
 }
 
-// SentenceBreak returns the Unicode sentence break property name for r.
-func SentenceBreak(r rune) string {
+// SentenceBreak returns the Unicode sentence break property for r.
+func SentenceBreak(r rune) SentenceBreakClass {
 	return runtimeLookup(r).sentenceBreak()
 }
 
@@ -56,18 +56,18 @@ func SimpleFold(r rune) rune {
 }
 
 // IsUpper reports whether r has general category Lu.
-func IsUpper(r rune) bool { return runtimeLookup(r).generalCategory() == "Lu" }
+func IsUpper(r rune) bool { return runtimeLookup(r).generalCategory() == GeneralCategoryLu }
 
 // IsLower reports whether r has general category Ll.
-func IsLower(r rune) bool { return runtimeLookup(r).generalCategory() == "Ll" }
+func IsLower(r rune) bool { return runtimeLookup(r).generalCategory() == GeneralCategoryLl }
 
 // IsTitle reports whether r has general category Lt.
-func IsTitle(r rune) bool { return runtimeLookup(r).generalCategory() == "Lt" }
+func IsTitle(r rune) bool { return runtimeLookup(r).generalCategory() == GeneralCategoryLt }
 
 // IsLetter reports whether r has a Unicode letter general category.
 func IsLetter(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Lu", "Ll", "Lt", "Lm", "Lo":
+	case GeneralCategoryLu, GeneralCategoryLl, GeneralCategoryLt, GeneralCategoryLm, GeneralCategoryLo:
 		return true
 	default:
 		return false
@@ -77,7 +77,7 @@ func IsLetter(r rune) bool {
 // IsNumber reports whether r has a Unicode number general category.
 func IsNumber(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Nd", "Nl", "No":
+	case GeneralCategoryNd, GeneralCategoryNl, GeneralCategoryNo:
 		return true
 	default:
 		return false
@@ -85,12 +85,12 @@ func IsNumber(r rune) bool {
 }
 
 // IsDigit reports whether r has general category Nd.
-func IsDigit(r rune) bool { return runtimeLookup(r).generalCategory() == "Nd" }
+func IsDigit(r rune) bool { return runtimeLookup(r).generalCategory() == GeneralCategoryNd }
 
 // IsMark reports whether r has a Unicode mark general category.
 func IsMark(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Mn", "Mc", "Me":
+	case GeneralCategoryMn, GeneralCategoryMc, GeneralCategoryMe:
 		return true
 	default:
 		return false
@@ -100,7 +100,7 @@ func IsMark(r rune) bool {
 // IsPunct reports whether r has a Unicode punctuation general category.
 func IsPunct(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Pc", "Pd", "Ps", "Pe", "Pi", "Pf", "Po":
+	case GeneralCategoryPc, GeneralCategoryPd, GeneralCategoryPs, GeneralCategoryPe, GeneralCategoryPi, GeneralCategoryPf, GeneralCategoryPo:
 		return true
 	default:
 		return false
@@ -110,7 +110,7 @@ func IsPunct(r rune) bool {
 // IsSymbol reports whether r has a Unicode symbol general category.
 func IsSymbol(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Sm", "Sc", "Sk", "So":
+	case GeneralCategorySm, GeneralCategorySc, GeneralCategorySk, GeneralCategorySo:
 		return true
 	default:
 		return false
@@ -120,12 +120,12 @@ func IsSymbol(r rune) bool {
 // IsGraphic reports whether r is defined as a Graphic by Go's unicode package.
 func IsGraphic(r rune) bool {
 	switch runtimeLookup(r).generalCategory() {
-	case "Lu", "Ll", "Lt", "Lm", "Lo",
-		"Mn", "Mc", "Me",
-		"Nd", "Nl", "No",
-		"Pc", "Pd", "Ps", "Pe", "Pi", "Pf", "Po",
-		"Sm", "Sc", "Sk", "So",
-		"Zs":
+	case GeneralCategoryLu, GeneralCategoryLl, GeneralCategoryLt, GeneralCategoryLm, GeneralCategoryLo,
+		GeneralCategoryMn, GeneralCategoryMc, GeneralCategoryMe,
+		GeneralCategoryNd, GeneralCategoryNl, GeneralCategoryNo,
+		GeneralCategoryPc, GeneralCategoryPd, GeneralCategoryPs, GeneralCategoryPe, GeneralCategoryPi, GeneralCategoryPf, GeneralCategoryPo,
+		GeneralCategorySm, GeneralCategorySc, GeneralCategorySk, GeneralCategorySo,
+		GeneralCategoryZs:
 		return true
 	default:
 		return false
@@ -138,11 +138,11 @@ func IsPrint(r rune) bool {
 		return true
 	}
 	switch runtimeLookup(r).generalCategory() {
-	case "Lu", "Ll", "Lt", "Lm", "Lo",
-		"Mn", "Mc", "Me",
-		"Nd", "Nl", "No",
-		"Pc", "Pd", "Ps", "Pe", "Pi", "Pf", "Po",
-		"Sm", "Sc", "Sk", "So":
+	case GeneralCategoryLu, GeneralCategoryLl, GeneralCategoryLt, GeneralCategoryLm, GeneralCategoryLo,
+		GeneralCategoryMn, GeneralCategoryMc, GeneralCategoryMe,
+		GeneralCategoryNd, GeneralCategoryNl, GeneralCategoryNo,
+		GeneralCategoryPc, GeneralCategoryPd, GeneralCategoryPs, GeneralCategoryPe, GeneralCategoryPi, GeneralCategoryPf, GeneralCategoryPo,
+		GeneralCategorySm, GeneralCategorySc, GeneralCategorySk, GeneralCategorySo:
 		return true
 	default:
 		return false

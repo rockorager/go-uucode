@@ -112,22 +112,44 @@ const (
 	gbIndicConjunctConsonant
 )
 
+var wordBreakNames = []string{
+	"Other", "LF", "Newline", "CR", "WSegSpace", "Double_Quote", "Single_Quote", "MidNum", "MidNumLet", "Numeric", "MidLetter", "ALetter", "ExtendNumLet", "Format", "Extend", "Hebrew_Letter", "ZWJ", "Katakana", "Regional_Indicator",
+}
+
+var sentenceBreakNames = []string{
+	"Other", "Sp", "LF", "CR", "STerm", "Close", "SContinue", "ATerm", "Numeric", "Upper", "Lower", "Sep", "Format", "OLetter", "Extend",
+}
+
 var lineBreakNames = []string{
 	"XX", "CM", "BA", "LF", "BK", "CR", "SP", "EX", "QU", "AL", "PR", "PO", "OP", "CP", "IS", "HY", "SY", "NU", "CL", "NL", "GL", "AI", "BB", "HH", "HL", "SA", "JL", "JV", "JT", "NS", "AK", "VI", "AS", "ID", "VF", "ZW", "ZWJ", "B2", "IN", "WJ", "EB", "CJ", "H2", "H3", "SG", "CB", "AP", "RI", "EM",
 }
 
-var lineBreakIDs = func() map[string]uint8 {
-	ids := make(map[string]uint8, len(lineBreakNames))
-	for i, name := range lineBreakNames {
+var eastAsianWidthNames = []string{
+	"N", "Na", "A", "W", "H", "F",
+}
+
+var generalCategoryNames = []string{
+	"Cn", "Cc", "Zs", "Po", "Sc", "Ps", "Pe", "Sm", "Pd", "Nd", "Lu", "Sk", "Pc", "Ll", "So", "Lo", "Pi", "Cf", "No", "Pf", "Lt", "Lm", "Mn", "Me", "Mc", "Nl", "Zl", "Zp", "Cs", "Co",
+}
+
+var wordBreakIDs = propertyIDs(wordBreakNames)
+var sentenceBreakIDs = propertyIDs(sentenceBreakNames)
+var lineBreakIDs = propertyIDs(lineBreakNames)
+var eastAsianWidthIDs = propertyIDs(eastAsianWidthNames)
+var generalCategoryIDs = propertyIDs(generalCategoryNames)
+
+func propertyIDs(names []string) map[string]uint8 {
+	ids := make(map[string]uint8, len(names))
+	for i, name := range names {
 		ids[name] = uint8(i)
 	}
 	return ids
-}()
+}
 
-func lineBreakID(value string) uint8 {
-	id, ok := lineBreakIDs[value]
+func propertyID(prop, value string, ids map[string]uint8) uint8 {
+	id, ok := ids[value]
 	if !ok {
-		panic(fmt.Sprintf("unknown Line_Break property %q", value))
+		panic(fmt.Sprintf("unknown %s property %q", prop, value))
 	}
 	return id
 }
@@ -252,10 +274,6 @@ func buildRows(ucd string) ([]row, error) {
 	}
 
 	rows := make([]row, maxRune+1)
-	wordIDs := newInterner("Other")
-	sentenceIDs := newInterner("Other")
-	eawIDs := newInterner("N")
-	gcIDs := newInterner("Cn")
 	for cp, p := range allProps {
 		gb := deriveGraphemeBreak(cp, p)
 		width, zero := deriveWidth(cp, p, gb)
@@ -310,11 +328,11 @@ func buildRows(ucd string) ([]row, error) {
 		rows[cp] = row{
 			gb:         gb,
 			width:      packedWidth,
-			wb:         wordIDs.id(p.wordBreak),
-			sb:         sentenceIDs.id(p.sentenceBreak),
-			lb:         lineBreakID(p.lineBreak),
-			eaw:        eawIDs.id(p.eastAsianWidth),
-			gc:         gcIDs.id(p.generalCategory),
+			wb:         propertyID("Word_Break", p.wordBreak, wordBreakIDs),
+			sb:         propertyID("Sentence_Break", p.sentenceBreak, sentenceBreakIDs),
+			lb:         propertyID("Line_Break", p.lineBreak, lineBreakIDs),
+			eaw:        propertyID("East_Asian_Width", p.eastAsianWidth, eastAsianWidthIDs),
+			gc:         propertyID("General_Category", p.generalCategory, generalCategoryIDs),
 			flags:      flags,
 			flags2:     flags2,
 			upperDelta: p.upperDelta,
@@ -324,40 +342,16 @@ func buildRows(ucd string) ([]row, error) {
 		}
 	}
 	generatedNames = map[string][]string{
-		"runtimeWordBreakNames":       wordIDs.names,
-		"runtimeSentenceBreakNames":   sentenceIDs.names,
+		"runtimeWordBreakNames":       wordBreakNames,
+		"runtimeSentenceBreakNames":   sentenceBreakNames,
 		"runtimeLineBreakNames":       lineBreakNames,
-		"runtimeEastAsianWidthNames":  eawIDs.names,
-		"runtimeGeneralCategoryNames": gcIDs.names,
+		"runtimeEastAsianWidthNames":  eastAsianWidthNames,
+		"runtimeGeneralCategoryNames": generalCategoryNames,
 	}
 	return rows, nil
 }
 
 var generatedNames map[string][]string
-
-type interner struct {
-	ids   map[string]uint8
-	names []string
-}
-
-func newInterner(defaultValue string) *interner {
-	i := &interner{ids: map[string]uint8{}, names: []string{}}
-	i.id(defaultValue)
-	return i
-}
-
-func (i *interner) id(value string) uint8 {
-	if id, ok := i.ids[value]; ok {
-		return id
-	}
-	if len(i.names) > 0xff {
-		panic("too many property values")
-	}
-	id := uint8(len(i.names))
-	i.ids[value] = id
-	i.names = append(i.names, value)
-	return id
-}
 
 type unionFind struct {
 	parent map[int]int

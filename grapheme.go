@@ -2,21 +2,6 @@ package uucode
 
 import "unicode/utf8"
 
-// BreakState carries state between adjacent grapheme break decisions.
-//
-// Most callers should use GraphemeIterator instead of managing BreakState
-// directly.
-type BreakState string
-
-// Grapheme break state values.
-const (
-	BreakStateDefault                BreakState = "default"
-	BreakStateRegionalIndicator      BreakState = "regional_indicator"
-	BreakStateExtendedPictographic   BreakState = "extended_pictographic"
-	BreakStateIndicConjunctConsonant BreakState = "indic_conjunct_break_consonant"
-	BreakStateIndicConjunctLinker    BreakState = "indic_conjunct_break_linker"
-)
-
 const (
 	breakStateDefault uint8 = iota
 	breakStateRegionalIndicator
@@ -234,78 +219,24 @@ func computeGraphemeBreakRaw(gb1, gb2 uint8, state *uint8) bool {
 }
 
 func breakStateFromRaw(state uint8) BreakState {
-	switch state {
-	case breakStateRegionalIndicator:
-		return BreakStateRegionalIndicator
-	case breakStateExtendedPictographic:
-		return BreakStateExtendedPictographic
-	case breakStateIndicConjunctConsonant:
-		return BreakStateIndicConjunctConsonant
-	case breakStateIndicConjunctLinker:
-		return BreakStateIndicConjunctLinker
-	default:
-		return BreakStateDefault
+	if state <= breakStateIndicConjunctLinker {
+		return BreakState(state)
 	}
+	return BreakStateDefault
 }
 
 func rawBreakState(state BreakState) uint8 {
-	switch state {
-	case BreakStateRegionalIndicator:
-		return breakStateRegionalIndicator
-	case BreakStateExtendedPictographic:
-		return breakStateExtendedPictographic
-	case BreakStateIndicConjunctConsonant:
-		return breakStateIndicConjunctConsonant
-	case BreakStateIndicConjunctLinker:
-		return breakStateIndicConjunctLinker
-	default:
-		return breakStateDefault
+	if state <= BreakStateIndicConjunctLinker {
+		return uint8(state)
 	}
+	return breakStateDefault
 }
 
 func rawGraphemeBreak(gb GraphemeBreak) uint8 {
-	switch gb {
-	case GraphemeControl:
-		return gbControl
-	case GraphemePrepend:
-		return gbPrepend
-	case GraphemeCR:
-		return gbCR
-	case GraphemeLF:
-		return gbLF
-	case GraphemeRegionalIndicator:
-		return gbRegionalIndicator
-	case GraphemeSpacingMark:
-		return gbSpacingMark
-	case GraphemeL:
-		return gbL
-	case GraphemeV:
-		return gbV
-	case GraphemeT:
-		return gbT
-	case GraphemeLV:
-		return gbLV
-	case GraphemeLVT:
-		return gbLVT
-	case GraphemeZWJ:
-		return gbZWJ
-	case GraphemeZWNJ:
-		return gbZWNJ
-	case GraphemeExtendedPictographic:
-		return gbExtendedPictographic
-	case GraphemeEmojiModifierBase:
-		return gbEmojiModifierBase
-	case GraphemeEmojiModifier:
-		return gbEmojiModifier
-	case GraphemeIndicConjunctExtend:
-		return gbIndicConjunctExtend
-	case GraphemeIndicConjunctLinker:
-		return gbIndicConjunctLinker
-	case GraphemeIndicConjunctConsonant:
-		return gbIndicConjunctConsonant
-	default:
-		return gbOther
+	if gb <= GraphemeIndicConjunctConsonant {
+		return uint8(gb)
 	}
+	return gbOther
 }
 
 func isIndicConjunctBreakExtendRaw(gb uint8) bool {
