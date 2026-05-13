@@ -23,7 +23,7 @@ func TestGeneratedRuntimeRows(t *testing.T) {
 	if got := SentenceBreak('A'); got != "Upper" {
 		t.Fatalf("A sentence break: got %q", got)
 	}
-	if got := LineBreak('A'); got != "AL" {
+	if got := LineBreak('A'); got != LineBreakAL {
 		t.Fatalf("A line break: got %q", got)
 	}
 	if got := runtimeLookup(0x0300).wcwidthZeroInGrapheme(); !got {

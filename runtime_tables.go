@@ -193,8 +193,8 @@ func (r runtimeRow) sentenceBreak() string {
 	return runtimeSentenceBreakNames[r.sb]
 }
 
-func (r runtimeRow) lineBreak() string {
-	return runtimeLineBreakNames[r.lb]
+func (r runtimeRow) lineBreak() LineBreakClass {
+	return LineBreakClass(r.lb)
 }
 
 func (r runtimeRow) eastAsianWidth() string {

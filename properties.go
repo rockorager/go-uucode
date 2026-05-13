@@ -20,8 +20,8 @@ func SentenceBreak(r rune) string {
 	return runtimeLookup(r).sentenceBreak()
 }
 
-// LineBreak returns the Unicode line break property abbreviation for r.
-func LineBreak(r rune) string {
+// LineBreak returns the Unicode line break property for r.
+func LineBreak(r rune) LineBreakClass {
 	return runtimeLookup(r).lineBreak()
 }
 

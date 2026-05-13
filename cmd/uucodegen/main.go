@@ -112,6 +112,26 @@ const (
 	gbIndicConjunctConsonant
 )
 
+var lineBreakNames = []string{
+	"XX", "CM", "BA", "LF", "BK", "CR", "SP", "EX", "QU", "AL", "PR", "PO", "OP", "CP", "IS", "HY", "SY", "NU", "CL", "NL", "GL", "AI", "BB", "HH", "HL", "SA", "JL", "JV", "JT", "NS", "AK", "VI", "AS", "ID", "VF", "ZW", "ZWJ", "B2", "IN", "WJ", "EB", "CJ", "H2", "H3", "SG", "CB", "AP", "RI", "EM",
+}
+
+var lineBreakIDs = func() map[string]uint8 {
+	ids := make(map[string]uint8, len(lineBreakNames))
+	for i, name := range lineBreakNames {
+		ids[name] = uint8(i)
+	}
+	return ids
+}()
+
+func lineBreakID(value string) uint8 {
+	id, ok := lineBreakIDs[value]
+	if !ok {
+		panic(fmt.Sprintf("unknown Line_Break property %q", value))
+	}
+	return id
+}
+
 func main() {
 	out := flag.String("out", "tables_gen.go", "output file")
 	ucd := flag.String("ucd", "ucd", "Unicode Character Database directory")
@@ -234,7 +254,6 @@ func buildRows(ucd string) ([]row, error) {
 	rows := make([]row, maxRune+1)
 	wordIDs := newInterner("Other")
 	sentenceIDs := newInterner("Other")
-	lineIDs := newInterner("XX")
 	eawIDs := newInterner("N")
 	gcIDs := newInterner("Cn")
 	for cp, p := range allProps {
@@ -293,7 +312,7 @@ func buildRows(ucd string) ([]row, error) {
 			width:      packedWidth,
 			wb:         wordIDs.id(p.wordBreak),
 			sb:         sentenceIDs.id(p.sentenceBreak),
-			lb:         lineIDs.id(p.lineBreak),
+			lb:         lineBreakID(p.lineBreak),
 			eaw:        eawIDs.id(p.eastAsianWidth),
 			gc:         gcIDs.id(p.generalCategory),
 			flags:      flags,
@@ -307,7 +326,7 @@ func buildRows(ucd string) ([]row, error) {
 	generatedNames = map[string][]string{
 		"runtimeWordBreakNames":       wordIDs.names,
 		"runtimeSentenceBreakNames":   sentenceIDs.names,
-		"runtimeLineBreakNames":       lineIDs.names,
+		"runtimeLineBreakNames":       lineBreakNames,
 		"runtimeEastAsianWidthNames":  eawIDs.names,
 		"runtimeGeneralCategoryNames": gcIDs.names,
 	}
