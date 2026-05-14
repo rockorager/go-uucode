@@ -224,18 +224,50 @@ func TestStringWidth(t *testing.T) {
 		"A\u0300B":             2,
 		"😀AB":                  4,
 		"\u200b":               0,
-		"\u20e3":               2,
-		"\u1f1e6":              2,
+		"\u20e3":               0,
+		"1\ufe0f\u20e3":        2,
+		"\U0001f1e6":           1,
 		"\u2601\ufe0f":         2,
 		"\u2601\ufe0e":         1,
 		"\U0001f1fa\U0001f1f8": 2,
 		"\U0001f469\u200d\U0001f469\u200d\U0001f467\u200d\U0001f466_": 3,
 		"\u1100\u1161":             2,
+		"\u0915\u093f":             1,
 		"\u0915\u094d\u200d\u0937": 2,
 	}
 	for s, want := range tests {
 		if got := StringWidth(s); got != want {
 			t.Fatalf("StringWidth(%q) = %d, want %d", s, got, want)
 		}
+	}
+}
+
+func TestRuneWidth(t *testing.T) {
+	tests := map[rune]int{
+		-1:       0,
+		'A':      1,
+		'\u00ad': 0,
+		'\u0300': 0,
+		'\u0591': 1,
+		'\u070f': 0,
+		'\u093f': 1,
+		'\u0cf3': 0,
+		'\u115f': 2,
+		'\u20e3': 0,
+		'\u4e00': 2,
+		0x1f1e6:  1,
+		0x2a6e0:  2,
+		0x110000: 0,
+	}
+	for r, want := range tests {
+		if got := RuneWidth(r); got != want {
+			t.Fatalf("RuneWidth(%U) = %d, want %d", r, got, want)
+		}
+	}
+}
+
+func TestEastAsianWidthMissingRanges(t *testing.T) {
+	if got := EastAsianWidth(0x2a6e0); got != EastAsianWidthW {
+		t.Fatalf("EastAsianWidth(U+2A6E0) = %s, want W", got)
 	}
 }

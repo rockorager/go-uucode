@@ -32,6 +32,9 @@ func GraphemeBreakProperty(r rune) GraphemeBreak {
 
 // RuneWidth returns the terminal cell width for r by itself.
 func RuneWidth(r rune) int {
+	if r < 0 || r > maxRune {
+		return 0
+	}
 	return runtimeLookup(r).wcwidthStandalone()
 }
 

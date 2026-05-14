@@ -201,11 +201,7 @@ func buildRows(ucd string) ([]row, error) {
 	if err := loadDerivedCoreProperties(filepath.Join(ucd, "DerivedCoreProperties.txt"), allProps); err != nil {
 		return nil, err
 	}
-	if err := loadRangeProperty(filepath.Join(ucd, "extracted", "DerivedEastAsianWidth.txt"), func(r codeRange, value string) {
-		for cp := r.start; cp <= r.end; cp++ {
-			allProps[cp].eastAsianWidth = value
-		}
-	}); err != nil {
+	if err := loadEastAsianWidth(filepath.Join(ucd, "extracted", "DerivedEastAsianWidth.txt"), allProps); err != nil {
 		return nil, err
 	}
 	if err := loadRangeProperty(filepath.Join(ucd, "auxiliary", "WordBreakProperty.txt"), func(r codeRange, value string) {
@@ -503,6 +499,42 @@ func loadDerivedCoreProperties(path string, props []props) error {
 	})
 }
 
+func loadEastAsianWidth(path string, props []props) error {
+	if err := eachMissingRange(path, func(r codeRange, value string) {
+		value = eastAsianWidthName(value)
+		for cp := r.start; cp <= r.end; cp++ {
+			props[cp].eastAsianWidth = value
+		}
+	}); err != nil {
+		return err
+	}
+	return loadRangeProperty(path, func(r codeRange, value string) {
+		value = eastAsianWidthName(value)
+		for cp := r.start; cp <= r.end; cp++ {
+			props[cp].eastAsianWidth = value
+		}
+	})
+}
+
+func eastAsianWidthName(value string) string {
+	switch value {
+	case "Neutral":
+		return "N"
+	case "Narrow":
+		return "Na"
+	case "Ambiguous":
+		return "A"
+	case "Wide":
+		return "W"
+	case "Halfwidth":
+		return "H"
+	case "Fullwidth":
+		return "F"
+	default:
+		return value
+	}
+}
+
 func loadEmojiData(path string, props []props) error {
 	return loadRangeProperty(path, func(r codeRange, value string) {
 		for cp := r.start; cp <= r.end; cp++ {
@@ -550,6 +582,30 @@ func loadRangeProperty(path string, fn func(codeRange, string)) error {
 		fn(r, f[1])
 		return nil
 	})
+}
+
+func eachMissingRange(path string, fn func(codeRange, string)) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	for _, raw := range strings.Split(string(b), "\n") {
+		i := strings.Index(raw, "# @missing:")
+		if i < 0 {
+			continue
+		}
+		line := strings.TrimSpace(raw[i+len("# @missing:"):])
+		f := splitSemi(line)
+		if len(f) < 2 {
+			continue
+		}
+		r, err := parseRange(f[0])
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		fn(r, f[1])
+	}
+	return nil
 }
 
 func eachDataLine(path string, fn func(string) error) error {
@@ -663,37 +719,69 @@ func deriveGraphemeBreak(cp int, p props) uint8 {
 }
 
 func deriveWidth(cp int, p props, gb uint8) (int, bool) {
-	width := 1
-	if p.generalCategory == "Cc" ||
-		p.generalCategory == "Cs" ||
-		p.generalCategory == "Zl" ||
-		p.generalCategory == "Zp" {
-		width = 0
-	} else if cp == 0x00ad {
-		width = 1
-	} else if p.defaultIgnorable {
-		width = 0
-	} else if cp == 0x2e3a {
-		width = 2
-	} else if cp == 0x2e3b {
-		width = 3
+	standalone := 1
+	if cp < 0x20 ||
+		(cp >= 0x7f && cp <= 0x9f) ||
+		cp == 0x00ad ||
+		(cp >= 0xd800 && cp <= 0xdfff) {
+		standalone = 0
+	} else if cp < 0x300 {
+		standalone = 1
+	} else if inCodeRanges(cp, runewidthNonprint) ||
+		inCodeRanges(cp, runewidthCombining) {
+		standalone = 0
 	} else if p.eastAsianWidth == "W" || p.eastAsianWidth == "F" {
-		width = 2
-	} else if gb == gbRegionalIndicator {
-		width = 2
-	}
-	standalone := width
-	if cp == 0x20e3 {
 		standalone = 2
 	}
-	zero := width == 0 ||
+
+	zero := standalone == 0 ||
 		p.emojiModifier ||
 		p.generalCategory == "Mn" ||
 		p.generalCategory == "Me" ||
+		p.generalCategory == "Mc" ||
 		gb == gbV ||
 		gb == gbT ||
 		gb == gbPrepend
 	return standalone, zero
+}
+
+func inCodeRanges(cp int, ranges []codeRange) bool {
+	i := sort.Search(len(ranges), func(i int) bool {
+		return ranges[i].end >= cp
+	})
+	return i < len(ranges) && ranges[i].start <= cp
+}
+
+var runewidthNonprint = []codeRange{
+	{0x070f, 0x070f},
+	{0x180b, 0x180e},
+	{0x200b, 0x200f},
+	{0x2028, 0x202e},
+	{0x206a, 0x206f},
+	{0xfeff, 0xfeff},
+	{0xfff9, 0xfffb},
+	{0xfffe, 0xffff},
+}
+
+var runewidthCombining = []codeRange{
+	{0x0300, 0x036f}, {0x0483, 0x0489}, {0x07eb, 0x07f3},
+	{0x0c00, 0x0c00}, {0x0c04, 0x0c04}, {0x0cf3, 0x0cf3},
+	{0x0d00, 0x0d01}, {0x135d, 0x135f}, {0x180b, 0x180d},
+	{0x180f, 0x180f}, {0x1a7f, 0x1a7f}, {0x1ab0, 0x1add},
+	{0x1ae0, 0x1aeb}, {0x1b6b, 0x1b73}, {0x1dc0, 0x1dff},
+	{0x20d0, 0x20f0}, {0x2cef, 0x2cf1}, {0x2de0, 0x2dff},
+	{0x3099, 0x309a}, {0xa66f, 0xa672}, {0xa674, 0xa67d},
+	{0xa69e, 0xa69f}, {0xa6f0, 0xa6f1}, {0xa8e0, 0xa8f1},
+	{0xfe00, 0xfe0f}, {0xfe20, 0xfe2f}, {0x101fd, 0x101fd},
+	{0x10376, 0x1037a}, {0x10eab, 0x10eac}, {0x10f46, 0x10f50},
+	{0x10f82, 0x10f85}, {0x11300, 0x11301}, {0x1133b, 0x1133c},
+	{0x11366, 0x1136c}, {0x11370, 0x11374}, {0x16af0, 0x16af4},
+	{0x1cf00, 0x1cf2d}, {0x1cf30, 0x1cf46}, {0x1d165, 0x1d169},
+	{0x1d16d, 0x1d172}, {0x1d17b, 0x1d182}, {0x1d185, 0x1d18b},
+	{0x1d1aa, 0x1d1ad}, {0x1d242, 0x1d244}, {0x1e000, 0x1e006},
+	{0x1e008, 0x1e018}, {0x1e01b, 0x1e021}, {0x1e023, 0x1e024},
+	{0x1e026, 0x1e02a}, {0x1e08f, 0x1e08f}, {0x1e8d0, 0x1e8d6},
+	{0xe0100, 0xe01ef},
 }
 
 func generate(rows []row) ([]byte, error) {
