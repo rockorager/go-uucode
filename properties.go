@@ -184,6 +184,9 @@ func IsPatternWhiteSpace(r rune) bool { return runtimeLookup(r).isPatternWhiteSp
 // IsVariationSelector reports whether r has the Unicode Variation_Selector property.
 func IsVariationSelector(r rune) bool { return runtimeLookup(r).isVariationSelector() }
 
+// IsEmojiVariationBase reports whether r is a base for an emoji variation sequence.
+func IsEmojiVariationBase(r rune) bool { return runtimeLookup(r).isEmojiVSBase() }
+
 // IsNoncharacter reports whether r has the Unicode Noncharacter_Code_Point property.
 func IsNoncharacter(r rune) bool { return runtimeLookup(r).isNoncharacter() }
 

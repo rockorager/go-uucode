@@ -110,6 +110,9 @@ func TestGeneratedRuntimeRows(t *testing.T) {
 	if !IsVariationSelector('\ufe0f') || IsVariationSelector('A') {
 		t.Fatal("IsVariationSelector mismatch")
 	}
+	if !IsEmojiVariationBase('#') || !IsEmojiVariationBase('\u231a') || IsEmojiVariationBase('\ufe0f') || IsEmojiVariationBase('A') {
+		t.Fatal("IsEmojiVariationBase mismatch")
+	}
 	if !IsNoncharacter('\ufffe') || !IsNoncharacter('\U0010ffff') || IsNoncharacter('A') {
 		t.Fatal("IsNoncharacter mismatch")
 	}
