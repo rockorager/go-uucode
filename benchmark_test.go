@@ -49,6 +49,46 @@ func BenchmarkStringWidth(b *testing.B) {
 	}
 }
 
+func BenchmarkGraphemeSplitStringWidth(b *testing.B) {
+	for _, tc := range benchmarkStrings {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var width int
+			for i := 0; i < b.N; i++ {
+				it := NewGraphemeIterator(tc.s)
+				for {
+					g, ok := it.Next()
+					if !ok {
+						break
+					}
+					width += StringWidth(tc.s[g.Start:g.End])
+				}
+			}
+			sinkInt = width
+		})
+	}
+}
+
+func BenchmarkGraphemeWidthIterator(b *testing.B) {
+	for _, tc := range benchmarkStrings {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var width int
+			for i := 0; i < b.N; i++ {
+				it := NewGraphemeWidthIterator(tc.s)
+				for {
+					g, ok := it.Next()
+					if !ok {
+						break
+					}
+					width += g.Width
+				}
+			}
+			sinkInt = width
+		})
+	}
+}
+
 var benchmarkRunes = []struct {
 	name string
 	r    rune
