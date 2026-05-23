@@ -28,21 +28,19 @@ type GraphemeIterator struct {
 	nextCP  rune
 	hasNext bool
 	nextGB  uint8
+	synced  bool
 }
 
 // NewGraphemeIterator returns a grapheme cluster iterator for s.
 func NewGraphemeIterator(s string) GraphemeIterator {
-	cp, size, ok := nextRuneInString(s, 0)
-	gb := gbOther
-	if ok {
-		gb = runtimeLookup(cp).gb
-	}
+	cp, size, gb, ok := nextGraphemeRuneInString(s, 0)
 	return GraphemeIterator{
 		s:       s,
 		nextEnd: size,
 		nextCP:  cp,
 		hasNext: ok,
 		nextGB:  gb,
+		synced:  true,
 	}
 }
 
@@ -60,24 +58,65 @@ func nextRuneInString(s string, i int) (rune, int, bool) {
 	return r, i + size, true
 }
 
+func nextGraphemeRuneInString(s string, i int) (rune, int, uint8, bool) {
+	if i >= len(s) {
+		return 0, i, gbOther, false
+	}
+	if s[i] < utf8.RuneSelf {
+		return rune(s[i]), i + 1, asciiGraphemeBreak(s[i]), true
+	}
+	r, end, ok := nextRuneInString(s, i)
+	if !ok {
+		return 0, i, gbOther, false
+	}
+	return r, end, runtimeLookup(r).gb, true
+}
+
+func asciiGraphemeBreak(b byte) uint8 {
+	switch b {
+	case '\r':
+		return gbCR
+	case '\n':
+		return gbLF
+	}
+	if b < 0x20 || b == 0x7f {
+		return gbControl
+	}
+	return gbOther
+}
+
 // Next returns the next grapheme cluster.
 //
 // The returned Grapheme contains byte offsets into the original string. ok is
 // false after the iterator is exhausted.
 func (it *GraphemeIterator) Next() (Grapheme, bool) {
-	if !it.hasNext {
+	if it.i >= len(it.s) {
+		it.hasNext = false
 		return Grapheme{}, false
 	}
 	start := it.i
+	if b := it.s[it.i]; b >= 0x20 && b < 0x7f && (it.i+1 >= len(it.s) || it.s[it.i+1] < utf8.RuneSelf) {
+		it.i++
+		it.state = breakStateDefault
+		it.synced = false
+		return Grapheme{Start: start, End: it.i}, true
+	}
+	if !it.synced {
+		cp, nextEnd, gb, ok := nextGraphemeRuneInString(it.s, it.i)
+		it.nextCP, it.nextEnd, it.nextGB, it.hasNext = cp, nextEnd, gb, ok
+		it.synced = true
+	}
+	if !it.hasNext {
+		return Grapheme{}, false
+	}
 	for {
 		gb1 := it.nextGB
 		it.i = it.nextEnd
-		cp, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
-		it.nextCP, it.nextEnd, it.hasNext = cp, nextEnd, ok
+		cp, nextEnd, gb, ok := nextGraphemeRuneInString(it.s, it.nextEnd)
+		it.nextCP, it.nextEnd, it.nextGB, it.hasNext = cp, nextEnd, gb, ok
 		if !ok {
 			return Grapheme{Start: start, End: it.i}, true
 		}
-		it.nextGB = runtimeLookup(cp).gb
 		if computeGraphemeBreakRaw(gb1, it.nextGB, &it.state) {
 			return Grapheme{Start: start, End: it.i}, true
 		}
