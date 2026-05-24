@@ -24,10 +24,14 @@ func StringWidth(s string) int {
 }
 
 func stringWidthFrom(s string, start int) int {
-	it := newUTF8WidthIterator(s, start)
+	it := NewGraphemeWidthIterator(s[start:])
 	width := 0
-	for it.hasNext {
-		width += utf8WidthNext(&it)
+	for {
+		g, ok := it.Next()
+		if !ok {
+			break
+		}
+		width += g.Width
 	}
 	return width
 }

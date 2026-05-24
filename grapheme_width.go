@@ -29,7 +29,7 @@ func NewGraphemeWidthIterator(s string) GraphemeWidthIterator {
 	cp, size, ok := nextRuneInString(s, 0)
 	row := defaultRuntimeTextRow
 	if ok {
-		if cp >= 0x20 && cp < 0x7f {
+		if cp >= 0x20 && cp < 0x7f && (size >= len(s) || s[size] < 0x80) {
 			row = defaultRuntimeTextRow
 		} else {
 			row = runtimeTextLookup(cp)
@@ -61,7 +61,11 @@ func (it *GraphemeWidthIterator) Next() (GraphemeWithWidth, bool) {
 		} else if it.s[it.nextEnd] >= 0x20 && it.s[it.nextEnd] < 0x7f {
 			it.nextCP = rune(it.s[it.nextEnd])
 			it.nextEnd++
-			it.nextRow = defaultRuntimeTextRow
+			if it.nextEnd >= len(it.s) || it.s[it.nextEnd] < 0x80 {
+				it.nextRow = defaultRuntimeTextRow
+			} else {
+				it.nextRow = runtimeTextLookup(it.nextCP)
+			}
 			it.hasNext = true
 		} else {
 			cp, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
