@@ -8,6 +8,13 @@ const (
 	breakStateExtendedPictographic
 	breakStateIndicConjunctConsonant
 	breakStateIndicConjunctLinker
+	breakStateCount
+)
+
+const (
+	graphemeBreakPropertyCount = int(gbIndicConjunctConsonant + 1)
+	graphemeBreakTableSize     = int(breakStateCount) * graphemeBreakPropertyCount * graphemeBreakPropertyCount
+	graphemeBreakActionBreak   = 0x80
 )
 
 // Grapheme identifies a grapheme cluster by byte offsets into the original
@@ -48,14 +55,44 @@ func nextRuneInString(s string, i int) (rune, int, bool) {
 	if i >= len(s) {
 		return 0, i, false
 	}
-	if s[i] < utf8.RuneSelf {
-		return rune(s[i]), i + 1, true
+	b0 := s[i]
+	if b0 < utf8.RuneSelf {
+		return rune(b0), i + 1, true
 	}
-	r, size := utf8.DecodeRuneInString(s[i:])
-	if r == utf8.RuneError && size == 0 {
-		return 0, i, false
+	if b0 < 0xc2 {
+		return utf8.RuneError, i + 1, true
 	}
-	return r, i + size, true
+	if b0 < 0xe0 {
+		if i+1 < len(s) {
+			b1 := s[i+1]
+			if b1&0xc0 == 0x80 {
+				return rune(b0&0x1f)<<6 | rune(b1&0x3f), i + 2, true
+			}
+		}
+		return utf8.RuneError, i + 1, true
+	}
+	if b0 < 0xf0 {
+		if i+2 < len(s) {
+			b1 := s[i+1]
+			b2 := s[i+2]
+			if b1&0xc0 == 0x80 && b2&0xc0 == 0x80 && (b0 != 0xe0 || b1 >= 0xa0) && (b0 != 0xed || b1 < 0xa0) {
+				return rune(b0&0x0f)<<12 | rune(b1&0x3f)<<6 | rune(b2&0x3f), i + 3, true
+			}
+		}
+		return utf8.RuneError, i + 1, true
+	}
+	if b0 < 0xf5 {
+		if i+3 < len(s) {
+			b1 := s[i+1]
+			b2 := s[i+2]
+			b3 := s[i+3]
+			if b1&0xc0 == 0x80 && b2&0xc0 == 0x80 && b3&0xc0 == 0x80 && (b0 != 0xf0 || b1 >= 0x90) && (b0 != 0xf4 || b1 < 0x90) {
+				return rune(b0&0x07)<<18 | rune(b1&0x3f)<<12 | rune(b2&0x3f)<<6 | rune(b3&0x3f), i + 4, true
+			}
+		}
+		return utf8.RuneError, i + 1, true
+	}
+	return utf8.RuneError, i + 1, true
 }
 
 func nextGraphemeRuneInString(s string, i int) (rune, int, uint8, bool) {
@@ -154,107 +191,18 @@ func computeGraphemeBreakRaw(gb1, gb2 uint8, state *uint8) bool {
 		s := breakStateDefault
 		state = &s
 	}
-	switch *state {
-	case breakStateRegionalIndicator:
-		if gb1 != gbRegionalIndicator || gb2 != gbRegionalIndicator {
-			*state = breakStateDefault
-		}
-	case breakStateExtendedPictographic:
-		if !possiblyEmojiSequencePartRaw(gb1) || !possiblyEmojiSequencePartRaw(gb2) {
-			*state = breakStateDefault
-		}
-	case breakStateIndicConjunctConsonant, breakStateIndicConjunctLinker:
-		if !possiblyIndicSequencePartRaw(gb1) || !possiblyIndicSequencePartRaw(gb2) {
-			*state = breakStateDefault
-		}
+	if gb1 > gbIndicConjunctConsonant {
+		gb1 = gbOther
 	}
-
-	if gb1 == gbCR && gb2 == gbLF {
-		return false
+	if gb2 > gbIndicConjunctConsonant {
+		gb2 = gbOther
 	}
-	if gb1 == gbControl || gb1 == gbCR || gb1 == gbLF {
-		return true
-	}
-	if gb2 == gbControl || gb2 == gbCR || gb2 == gbLF {
-		return true
-	}
-	if gb1 == gbL && (gb2 == gbL || gb2 == gbV || gb2 == gbLV || gb2 == gbLVT) {
-		return false
-	}
-	if (gb1 == gbLV || gb1 == gbV) && (gb2 == gbV || gb2 == gbT) {
-		return false
-	}
-	if (gb1 == gbLVT || gb1 == gbT) && gb2 == gbT {
-		return false
-	}
-	if gb2 == gbSpacingMark {
-		return false
-	}
-	if gb1 == gbPrepend {
-		return false
-	}
-
-	if gb1 == gbIndicConjunctConsonant {
-		if isIndicConjunctBreakExtendRaw(gb2) {
-			*state = breakStateIndicConjunctConsonant
-			return false
-		}
-		if gb2 == gbIndicConjunctLinker {
-			*state = breakStateIndicConjunctLinker
-			return false
-		}
-	} else if *state == breakStateIndicConjunctConsonant {
-		if gb2 == gbIndicConjunctLinker {
-			*state = breakStateIndicConjunctLinker
-			return false
-		}
-		if isIndicConjunctBreakExtendRaw(gb2) {
-			return false
-		}
-		*state = breakStateDefault
-	} else if *state == breakStateIndicConjunctLinker {
-		if gb2 == gbIndicConjunctLinker || isIndicConjunctBreakExtendRaw(gb2) {
-			return false
-		}
-		if gb2 == gbIndicConjunctConsonant {
-			*state = breakStateDefault
-			return false
-		}
+	if *state >= breakStateCount {
 		*state = breakStateDefault
 	}
-
-	if isExtendedPictographicRaw(gb1) {
-		if isExtendRaw(gb2) || gb2 == gbZWJ {
-			*state = breakStateExtendedPictographic
-			return false
-		}
-		if gb1 == gbEmojiModifierBase && gb2 == gbEmojiModifier {
-			*state = breakStateExtendedPictographic
-			return false
-		}
-	} else if *state == breakStateExtendedPictographic {
-		if (isExtendRaw(gb1) || gb1 == gbEmojiModifier) && (isExtendRaw(gb2) || gb2 == gbZWJ) {
-			return false
-		}
-		if gb1 == gbZWJ && isExtendedPictographicRaw(gb2) {
-			*state = breakStateDefault
-			return false
-		}
-		*state = breakStateDefault
-	}
-
-	if gb1 == gbRegionalIndicator && gb2 == gbRegionalIndicator {
-		if *state == breakStateDefault {
-			*state = breakStateRegionalIndicator
-			return false
-		}
-		*state = breakStateDefault
-		return true
-	}
-	if isExtendRaw(gb2) || gb2 == gbZWJ {
-		return false
-	}
-	return true
+	action := graphemeBreakTable[(uint32(*state)*uint32(graphemeBreakPropertyCount)+uint32(gb1))*uint32(graphemeBreakPropertyCount)+uint32(gb2)]
+	*state = action &^ graphemeBreakActionBreak
+	return action&graphemeBreakActionBreak != 0
 }
 
 func breakStateFromRaw(state uint8) BreakState {
@@ -276,24 +224,4 @@ func rawGraphemeBreak(gb GraphemeBreak) uint8 {
 		return uint8(gb)
 	}
 	return gbOther
-}
-
-func isIndicConjunctBreakExtendRaw(gb uint8) bool {
-	return gb == gbIndicConjunctExtend || gb == gbZWJ
-}
-
-func isExtendRaw(gb uint8) bool {
-	return gb == gbZWNJ || gb == gbIndicConjunctExtend || gb == gbIndicConjunctLinker
-}
-
-func isExtendedPictographicRaw(gb uint8) bool {
-	return gb == gbExtendedPictographic || gb == gbEmojiModifierBase
-}
-
-func possiblyEmojiSequencePartRaw(gb uint8) bool {
-	return isExtendRaw(gb) || gb == gbZWJ || gb == gbExtendedPictographic || gb == gbEmojiModifierBase || gb == gbEmojiModifier
-}
-
-func possiblyIndicSequencePartRaw(gb uint8) bool {
-	return gb == gbIndicConjunctConsonant || gb == gbIndicConjunctLinker || gb == gbIndicConjunctExtend || gb == gbZWJ
 }

@@ -37,15 +37,15 @@ type utf8WidthIterator struct {
 	state   uint8
 	nextEnd int
 	nextCP  rune
-	nextRow runtimeRow
+	nextRow runtimeTextRow
 	hasNext bool
 }
 
 func newUTF8WidthIterator(s string, start int) utf8WidthIterator {
 	cp, size, ok := nextRuneInString(s, start)
-	row := defaultRuntimeRow
+	row := defaultRuntimeTextRow
 	if ok {
-		row = runtimeLookup(cp)
+		row = runtimeTextLookup(cp)
 	}
 	return utf8WidthIterator{
 		s:       s,
@@ -56,16 +56,16 @@ func newUTF8WidthIterator(s string, start int) utf8WidthIterator {
 	}
 }
 
-func (it *utf8WidthIterator) next() (rune, runtimeRow, bool, bool) {
+func (it *utf8WidthIterator) next() (rune, runtimeTextRow, bool, bool) {
 	if !it.hasNext {
-		return 0, defaultRuntimeRow, false, false
+		return 0, defaultRuntimeTextRow, false, false
 	}
 	cp1 := it.nextCP
 	row1 := it.nextRow
 	cp2, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
 	it.nextCP, it.nextEnd, it.hasNext = cp2, nextEnd, ok
 	if ok {
-		it.nextRow = runtimeLookup(cp2)
+		it.nextRow = runtimeTextLookup(cp2)
 		return cp1, row1, computeGraphemeBreakRaw(row1.gb, it.nextRow.gb, &it.state), true
 	}
 	return cp1, row1, true, true

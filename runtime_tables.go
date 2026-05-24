@@ -18,6 +18,12 @@ type runtimeRow struct {
 	foldDelta  int32
 }
 
+type runtimeTextRow struct {
+	gb    uint8
+	width uint8
+	flags uint8
+}
+
 const maxRune = 0x10ffff
 
 const (
@@ -66,6 +72,7 @@ const (
 )
 
 var defaultRuntimeRow = runtimeRow{gb: gbOther, width: 1}
+var defaultRuntimeTextRow = runtimeTextRow{gb: gbOther, width: 1}
 
 func runtimeLookup(cp rune) runtimeRow {
 	if cp < 0 || cp > maxRune {
@@ -74,6 +81,15 @@ func runtimeLookup(cp rune) runtimeRow {
 	stage2Offset := runtimeStage1[cp>>8]
 	rowIndex := runtimeStage2[stage2Offset+uint32(cp&0xff)]
 	return runtimeStage3[rowIndex]
+}
+
+func runtimeTextLookup(cp rune) runtimeTextRow {
+	if cp < 0 || cp > maxRune {
+		return defaultRuntimeTextRow
+	}
+	stage2Offset := runtimeStage1[cp>>8]
+	rowIndex := runtimeStage2[stage2Offset+uint32(cp&0xff)]
+	return runtimeStage3Text[rowIndex]
 }
 
 func (r runtimeRow) graphemeBreak() GraphemeBreak {
@@ -86,6 +102,18 @@ func (r runtimeRow) wcwidthStandalone() int {
 
 func (r runtimeRow) wcwidthZeroInGrapheme() bool {
 	return r.width&runtimeZeroWidthFlag != 0
+}
+
+func (r runtimeTextRow) wcwidthStandalone() int {
+	return int(r.width & runtimeWidthMask)
+}
+
+func (r runtimeTextRow) wcwidthZeroInGrapheme() bool {
+	return r.width&runtimeZeroWidthFlag != 0
+}
+
+func (r runtimeTextRow) isEmojiVSBase() bool {
+	return r.flags&runtimeEmojiVSFlag != 0
 }
 
 func (r runtimeRow) isEmojiVSBase() bool {

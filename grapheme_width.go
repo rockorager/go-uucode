@@ -19,7 +19,7 @@ type GraphemeWidthIterator struct {
 	s       string
 	nextEnd int
 	nextCP  rune
-	nextRow runtimeRow
+	nextRow runtimeTextRow
 	hasNext bool
 }
 
@@ -27,12 +27,12 @@ type GraphemeWidthIterator struct {
 // computes display width for each cluster.
 func NewGraphemeWidthIterator(s string) GraphemeWidthIterator {
 	cp, size, ok := nextRuneInString(s, 0)
-	row := defaultRuntimeRow
+	row := defaultRuntimeTextRow
 	if ok {
 		if cp >= 0x20 && cp < 0x7f {
-			row = defaultRuntimeRow
+			row = defaultRuntimeTextRow
 		} else {
-			row = runtimeLookup(cp)
+			row = runtimeTextLookup(cp)
 		}
 	}
 	return GraphemeWidthIterator{
@@ -61,13 +61,13 @@ func (it *GraphemeWidthIterator) Next() (GraphemeWithWidth, bool) {
 		} else if it.s[it.nextEnd] >= 0x20 && it.s[it.nextEnd] < 0x7f {
 			it.nextCP = rune(it.s[it.nextEnd])
 			it.nextEnd++
-			it.nextRow = defaultRuntimeRow
+			it.nextRow = defaultRuntimeTextRow
 			it.hasNext = true
 		} else {
 			cp, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
 			it.nextCP, it.nextEnd, it.hasNext = cp, nextEnd, ok
 			if ok {
-				it.nextRow = runtimeLookup(cp)
+				it.nextRow = runtimeTextLookup(cp)
 			}
 		}
 		it.state = breakStateDefault
@@ -85,7 +85,7 @@ func (it *GraphemeWidthIterator) Next() (GraphemeWithWidth, bool) {
 	if !ok {
 		return GraphemeWithWidth{Start: start, End: it.i, Width: standalone}, true
 	}
-	it.nextRow = runtimeLookup(cp)
+	it.nextRow = runtimeTextLookup(cp)
 	isBreak := computeGraphemeBreakRaw(gb1, it.nextRow.gb, &it.state)
 	if isBreak {
 		return GraphemeWithWidth{Start: start, End: it.i, Width: standalone}, true
@@ -106,7 +106,7 @@ func (it *GraphemeWidthIterator) Next() (GraphemeWithWidth, bool) {
 		nextCP, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
 		it.nextCP, it.nextEnd, it.hasNext = nextCP, nextEnd, ok
 		if ok {
-			it.nextRow = runtimeLookup(nextCP)
+			it.nextRow = runtimeTextLookup(nextCP)
 			isBreak = computeGraphemeBreakRaw(gb1, it.nextRow.gb, &it.state)
 		} else {
 			isBreak = true
@@ -130,7 +130,7 @@ func (it *GraphemeWidthIterator) Next() (GraphemeWithWidth, bool) {
 				nextCP, nextEnd, ok := nextRuneInString(it.s, it.nextEnd)
 				it.nextCP, it.nextEnd, it.hasNext = nextCP, nextEnd, ok
 				if ok {
-					it.nextRow = runtimeLookup(nextCP)
+					it.nextRow = runtimeTextLookup(nextCP)
 					isBreak = computeGraphemeBreakRaw(gb1, it.nextRow.gb, &it.state)
 				} else {
 					isBreak = true

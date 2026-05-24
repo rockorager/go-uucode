@@ -1,0 +1,4 @@
+charm.land/xunicode v0.0.0-20260310120343-e34c6fc66641 h1:PjSOjiIoiAu6nx0EmF0Z3v6+Cq2byIFjD0dXs6dvMpI=
+charm.land/xunicode v0.0.0-20260310120343-e34c6fc66641/go.mod h1:w/cdysJnrOKFtxvEPngJ9ATD9GFPH7DCFcbeIJcyNsw=
+golang.org/x/text v0.34.0 h1:oL/Qq0Kdaqxa1KbNeMKwQq0reLCCaFtqu2eNuSeNHbk=
+golang.org/x/text v0.34.0/go.mod h1:homfLqTYRFyVYemLBFl5GgL/DWEiH5wcsQ5gSh1yziA=

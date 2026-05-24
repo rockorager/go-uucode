@@ -112,6 +112,17 @@ const (
 	gbIndicConjunctConsonant
 )
 
+const (
+	breakStateDefault uint8 = iota
+	breakStateRegionalIndicator
+	breakStateExtendedPictographic
+	breakStateIndicConjunctConsonant
+	breakStateIndicConjunctLinker
+	breakStateCount
+)
+
+const graphemeBreakActionBreak = 0x80
+
 var wordBreakNames = []string{
 	"Other", "LF", "Newline", "CR", "WSegSpace", "Double_Quote", "Single_Quote", "MidNum", "MidNumLet", "Numeric", "MidLetter", "ALetter", "ExtendNumLet", "Format", "Extend", "Hebrew_Letter", "ZWJ", "Katakana", "Regional_Indicator",
 }
@@ -819,6 +830,7 @@ func generate(rows []row) ([]byte, error) {
 	b.WriteString("package uucode\n\n")
 	writeUint32Slice(&b, "runtimeStage1", stage1)
 	writeUint16Slice(&b, "runtimeStage2", stage2)
+	writeUint8Array(&b, "graphemeBreakTable", generateGraphemeBreakTable())
 	for _, name := range []string{
 		"runtimeWordBreakNames",
 		"runtimeSentenceBreakNames",
@@ -849,12 +861,164 @@ func generate(rows []row) ([]byte, error) {
 		)
 	}
 	b.WriteString("\n}\n")
+	b.WriteString("var runtimeStage3Text = [...]runtimeTextRow{\n")
+	for _, r := range stage3 {
+		fmt.Fprintf(&b, "{gb:%d,width:%d,flags:%d},", r.gb, r.width, r.flags)
+	}
+	b.WriteString("\n}\n")
 
 	formatted, err := format.Source(b.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	return formatted, nil
+}
+
+func generateGraphemeBreakTable() []uint8 {
+	const propertyCount = int(gbIndicConjunctConsonant + 1)
+	table := make([]uint8, int(breakStateCount)*propertyCount*propertyCount)
+	for state := uint8(0); state < breakStateCount; state++ {
+		for gb1 := uint8(0); gb1 < uint8(propertyCount); gb1++ {
+			for gb2 := uint8(0); gb2 < uint8(propertyCount); gb2++ {
+				nextState := state
+				isBreak := computeGraphemeBreakRaw(gb1, gb2, &nextState)
+				action := nextState
+				if isBreak {
+					action |= graphemeBreakActionBreak
+				}
+				table[(uint32(state)*uint32(propertyCount)+uint32(gb1))*uint32(propertyCount)+uint32(gb2)] = action
+			}
+		}
+	}
+	return table
+}
+
+func computeGraphemeBreakRaw(gb1, gb2 uint8, state *uint8) bool {
+	if state == nil {
+		s := breakStateDefault
+		state = &s
+	}
+	switch *state {
+	case breakStateRegionalIndicator:
+		if gb1 != gbRegionalIndicator || gb2 != gbRegionalIndicator {
+			*state = breakStateDefault
+		}
+	case breakStateExtendedPictographic:
+		if !possiblyEmojiSequencePartRaw(gb1) || !possiblyEmojiSequencePartRaw(gb2) {
+			*state = breakStateDefault
+		}
+	case breakStateIndicConjunctConsonant, breakStateIndicConjunctLinker:
+		if !possiblyIndicSequencePartRaw(gb1) || !possiblyIndicSequencePartRaw(gb2) {
+			*state = breakStateDefault
+		}
+	}
+
+	if gb1 == gbCR && gb2 == gbLF {
+		return false
+	}
+	if gb1 == gbControl || gb1 == gbCR || gb1 == gbLF {
+		return true
+	}
+	if gb2 == gbControl || gb2 == gbCR || gb2 == gbLF {
+		return true
+	}
+	if gb1 == gbL && (gb2 == gbL || gb2 == gbV || gb2 == gbLV || gb2 == gbLVT) {
+		return false
+	}
+	if (gb1 == gbLV || gb1 == gbV) && (gb2 == gbV || gb2 == gbT) {
+		return false
+	}
+	if (gb1 == gbLVT || gb1 == gbT) && gb2 == gbT {
+		return false
+	}
+	if gb2 == gbSpacingMark {
+		return false
+	}
+	if gb1 == gbPrepend {
+		return false
+	}
+
+	if gb1 == gbIndicConjunctConsonant {
+		if isIndicConjunctBreakExtendRaw(gb2) {
+			*state = breakStateIndicConjunctConsonant
+			return false
+		}
+		if gb2 == gbIndicConjunctLinker {
+			*state = breakStateIndicConjunctLinker
+			return false
+		}
+	} else if *state == breakStateIndicConjunctConsonant {
+		if gb2 == gbIndicConjunctLinker {
+			*state = breakStateIndicConjunctLinker
+			return false
+		}
+		if isIndicConjunctBreakExtendRaw(gb2) {
+			return false
+		}
+		*state = breakStateDefault
+	} else if *state == breakStateIndicConjunctLinker {
+		if gb2 == gbIndicConjunctLinker || isIndicConjunctBreakExtendRaw(gb2) {
+			return false
+		}
+		if gb2 == gbIndicConjunctConsonant {
+			*state = breakStateDefault
+			return false
+		}
+		*state = breakStateDefault
+	}
+
+	if isExtendedPictographicRaw(gb1) {
+		if isExtendRaw(gb2) || gb2 == gbZWJ {
+			*state = breakStateExtendedPictographic
+			return false
+		}
+		if gb1 == gbEmojiModifierBase && gb2 == gbEmojiModifier {
+			*state = breakStateExtendedPictographic
+			return false
+		}
+	} else if *state == breakStateExtendedPictographic {
+		if (isExtendRaw(gb1) || gb1 == gbEmojiModifier) && (isExtendRaw(gb2) || gb2 == gbZWJ) {
+			return false
+		}
+		if gb1 == gbZWJ && isExtendedPictographicRaw(gb2) {
+			*state = breakStateDefault
+			return false
+		}
+		*state = breakStateDefault
+	}
+
+	if gb1 == gbRegionalIndicator && gb2 == gbRegionalIndicator {
+		if *state == breakStateDefault {
+			*state = breakStateRegionalIndicator
+			return false
+		}
+		*state = breakStateDefault
+		return true
+	}
+	if isExtendRaw(gb2) || gb2 == gbZWJ {
+		return false
+	}
+	return true
+}
+
+func isIndicConjunctBreakExtendRaw(gb uint8) bool {
+	return gb == gbIndicConjunctExtend || gb == gbZWJ
+}
+
+func isExtendRaw(gb uint8) bool {
+	return gb == gbZWNJ || gb == gbIndicConjunctExtend || gb == gbIndicConjunctLinker
+}
+
+func isExtendedPictographicRaw(gb uint8) bool {
+	return gb == gbExtendedPictographic || gb == gbEmojiModifierBase
+}
+
+func possiblyEmojiSequencePartRaw(gb uint8) bool {
+	return isExtendRaw(gb) || gb == gbZWJ || gb == gbExtendedPictographic || gb == gbEmojiModifierBase || gb == gbEmojiModifier
+}
+
+func possiblyIndicSequencePartRaw(gb uint8) bool {
+	return gb == gbIndicConjunctConsonant || gb == gbIndicConjunctLinker || gb == gbIndicConjunctExtend || gb == gbZWJ
 }
 
 func blockKey(block [blockSize]uint32) string {
@@ -888,6 +1052,14 @@ func writeUint16Slice(b *bytes.Buffer, name string, values []uint32) {
 		if v > 0xffff {
 			panic(fmt.Sprintf("%s value %d overflows uint16", name, v))
 		}
+		fmt.Fprintf(b, "%d,", v)
+	}
+	b.WriteString("\n}\n\n")
+}
+
+func writeUint8Array(b *bytes.Buffer, name string, values []uint8) {
+	fmt.Fprintf(b, "var %s = [...]uint8{\n", name)
+	for _, v := range values {
 		fmt.Fprintf(b, "%d,", v)
 	}
 	b.WriteString("\n}\n\n")
