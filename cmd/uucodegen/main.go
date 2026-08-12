@@ -747,6 +747,7 @@ func deriveWidth(cp int, p props, gb uint8) (int, bool) {
 
 	zero := standalone == 0 ||
 		p.emojiModifier ||
+		p.originalGraphemeBreak == "Extend" ||
 		p.generalCategory == "Mn" ||
 		p.generalCategory == "Me" ||
 		p.generalCategory == "Mc" ||
