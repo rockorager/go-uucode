@@ -2,6 +2,30 @@ package uucode
 
 import "testing"
 
+func TestGraphemeWidthIteratorTagSequences(t *testing.T) {
+	cases := map[string]string{
+		"scotland": "\U0001f3f4\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f",
+		"england":  "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f",
+		"wales":    "\U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f",
+	}
+	for name, s := range cases {
+		it := NewGraphemeWidthIterator(s)
+		g, ok := it.Next()
+		if !ok {
+			t.Fatalf("%s: no cluster", name)
+		}
+		if g.End != len(s) {
+			t.Fatalf("%s: cluster is %d bytes, want %d", name, g.End, len(s))
+		}
+		if g.Width != 2 {
+			t.Fatalf("%s: cluster width = %d, want 2", name, g.Width)
+		}
+		if _, ok := it.Next(); ok {
+			t.Fatalf("%s: expected exactly one cluster", name)
+		}
+	}
+}
+
 func TestGraphemeWidthIteratorMatchesSplitStringWidth(t *testing.T) {
 	cases := []string{
 		"",
@@ -12,6 +36,9 @@ func TestGraphemeWidthIteratorMatchesSplitStringWidth(t *testing.T) {
 		"👩🏽‍🚀🇨🇭👨🏻‍🍼👨🏻‍❤️‍👨🏿",
 		"क्‍ष 한글 😀 _ end",
 		"text\ufe0f text\ufe0e",
+		"a\U0001f3f4\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007fb",
+		"\U000e0067\U000e0068",
+		"\uff76\uff9e\uff77\uff9e",
 	}
 	for _, s := range cases {
 		it := NewGraphemeIterator(s)

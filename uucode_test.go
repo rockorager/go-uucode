@@ -237,6 +237,17 @@ func TestStringWidth(t *testing.T) {
 		"\u1100\u1161":             2,
 		"\u0915\u093f":             1,
 		"\u0915\u094d\u200d\u0937": 2,
+		"\U0001f3f4\U000e0067\U000e0062\U000e0073\U000e0063\U000e0074\U000e007f": 2,
+		"\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f": 2,
+		"\U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f": 2,
+		"\U0001f3f4":   2,
+		"\U000e0067":   1,
+		"\U000e007f":   1,
+		"\uff76\uff9e": 1,
+		"\u115f":       2,
+		"\u1160":       1,
+		"\u3164":       2,
+		"\u2060":       1,
 	}
 	for s, want := range tests {
 		if got := StringWidth(s); got != want {
@@ -258,6 +269,10 @@ func TestRuneWidth(t *testing.T) {
 		'\u115f': 2,
 		'\u20e3': 0,
 		'\u4e00': 2,
+		'\uff9e': 1,
+		0xe0020:  1,
+		0xe0067:  1,
+		0xe007f:  1,
 		0x1f1e6:  1,
 		0x2a6e0:  2,
 		0x110000: 0,
