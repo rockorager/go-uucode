@@ -739,7 +739,8 @@ func deriveWidth(cp int, p props, gb uint8) (int, bool) {
 	} else if cp < 0x300 {
 		standalone = 1
 	} else if inCodeRanges(cp, runewidthNonprint) ||
-		inCodeRanges(cp, runewidthCombining) {
+		inCodeRanges(cp, runewidthCombining) ||
+		(p.defaultIgnorable && p.originalGraphemeBreak == "Extend") {
 		standalone = 0
 	} else if p.eastAsianWidth == "W" || p.eastAsianWidth == "F" {
 		standalone = 2
